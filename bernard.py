@@ -80,6 +80,34 @@ class ConfigFile(object):
 		
 		return innerfilter
 
+class Archive(object):
+	def __init__(self, path):
+		self.path = path
+		self.archive = tarfile.TarFile(self.path, 'a')
+		self.mtimes = self._list_mtimes()
+	
+	def _list_mtimes(self):
+		"""Return file:modification pairs in the backup file."""
+		files = {}
+		for info in self.archive:
+			# Leading slashes are removed on Unix--fix that
+			if not os.path.isabs(info.name):
+				file_path = os.path.join('/', info.name)
+			file_path = normalize(file_path)
+			files[file_path] = int(info.mtime)
+		return files
+	
+	def add_file(self, fspath):
+		path = normalize(fspath)
+		fstime = int(os.path.getmtime(path))
+		if (not path in self.mtimes or fstime > self.mtimes[path]):
+			self.archive.add(path)
+			return True
+		return False
+	
+	def close(self):
+		self.archive.close()
+
 class Bernard(object):
 	def __init__(self, config, name):
 		"""Initialize a Bernard driver based on the configuration object."""
@@ -93,41 +121,16 @@ class Bernard(object):
 
 	def backup(self):
 		"""Back up items on the file system listed in the config object."""
-		archive = tarfile.TarFile(self.archive_name, 'a')
-
-		def get_archive_files():
-			"""Return file:modification pairs in the backup file."""
-			archive_times = {}
-			for info in archive:
-				# Leading slashes are removed on Unix--fix that
-				if not os.path.isabs(info.name):
-					file_path = os.path.join('/', info.name)
-				file_path = normalize(file_path)
-				archive_times[file_path] = int(info.mtime)
-			return archive_times
-		
-		def get_fs_files():
-			"""Return file:modification pairs on the filesystem."""
-			fs_times = {}
-			for path in self.config.paths:
-				for entry in os.walk(path):
-					for file in entry[2]:
-						file = normalize(os.path.join(entry[0], file))
-						if self.config.filter(file):
-							fs_times[file] = int(os.path.getmtime(file))
-			return fs_times
-		
-		archive_times = get_archive_files()
-		fs_times = get_fs_files()
-
-		# Compare the file system with the backup file, add/update as needed
-		for file in fs_times:
-			if (not file in archive_times or
-				fs_times[file] > archive_times[file]):
-				archive.add(file)
-
+		archive = Archive(self.archive_name)
+		for path in self.config.paths:
+			for entry in os.walk(path):
+				for fpath in entry[2]:
+					fpath = normalize(os.path.join(entry[0], fpath))
+					if self.config.filter(fpath):
+						archive.add_file(fpath)
+						yield fpath
 		archive.close()
-	
+
 	def extract(self, revision_n=-1):
 		"""Restore the backup file onto the disk."""
 		pass
@@ -189,6 +192,7 @@ if __name__ == '__main__':
 	
 	bernard = Bernard(config, args.backup_name)
 	if args.should_backup:
-		bernard.backup()
+		for processed in bernard.backup():
+			print('Processing {0}'.format(processed))
 	if args.should_restore:
 		bernard.restore()
