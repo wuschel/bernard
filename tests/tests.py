@@ -2,10 +2,13 @@
 
 import unittest
 import sys
-import bernard
+import os
+
+#os.chdir('tests')
 
 # Grab modules in the root directory
-sys.path.insert(0, '.')
+sys.path.insert(0, '../')
+import bernard
 
 class SimpleConfigFile(unittest.TestCase):
 	def setUp(self):
