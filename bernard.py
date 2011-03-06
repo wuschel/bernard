@@ -23,9 +23,9 @@ class ConfigFile(object):
 		# Sane defaults
 		self.data['whitelist'] = []
 		self.data['blacklist'] = []
-		self.data['series'] = []
+		self.data['series'] = 0
 		self.data['backup'] = []
-		self.data['compress'] = []
+		self.data['compress'] = False
 		
 		# Plain key/value parsing
 		raw = cfgfile.read()
@@ -77,7 +77,8 @@ class ConfigFile(object):
 			if not self.data['blacklist']:
 				return ext in self.data['whitelist']
 			
-			return ext in self.data['whitelist'] or not ext in self.data['blacklist']
+			return ext in self.data['whitelist'] or
+				not ext in self.data['blacklist']
 		
 		return innerfilter
 
@@ -94,30 +95,40 @@ class Bernard(object):
 		if self.config.compress:
 			ext += '.gz'
 		return '{0}-{1}{2}'.format(self.name, self.config.series, ext)
-	
+
 	def backup(self):
 		"""Back up items on the file system listed in the config object."""
-		# Find the modification dates of each backed up file
 		archive = tarfile.TarFile(self.archive_name, 'a')
-		archive_times = {}
-		for info in archive:
-			# Leading slashes are removed on Unix
-			if not os.path.isabs(info.name):
-				file_path = os.path.join('/', info.name)
-			file_path = normalize(file_path)
-			archive_times[file_path] = int(info.mtime)
-		
-		# Look at every file we need to have in the archive.
-		fs_times = {}
-		for path in self.config.paths:
-			for entry in os.walk(path):
-				for file in entry[2]:
-					file = normalize(os.path.join(entry[0], file))
-					if self.config.filter(file):
-						fs_times[file] = int(os.path.getmtime(file))
 
+		def get_archive_files(self):
+				"""Return file:modification pairs in the backup file."""
+			archive_times = {}
+			for info in archive:
+				# Leading slashes are removed on Unix
+				if not os.path.isabs(info.name):
+					file_path = os.path.join('/', info.name)
+				file_path = normalize(file_path)
+				archive_times[file_path] = int(info.mtime)
+			return archive_times
+		
+		def get_fs_files(self):
+			"""Return file:modification pairs on the filesystem."""
+			fs_times = {}
+			for path in self.config.paths:
+				for entry in os.walk(path):
+					for file in entry[2]:
+						file = normalize(os.path.join(entry[0], file))
+						if self.config.filter(file):
+							fs_times[file] = int(os.path.getmtime(file))
+			return fs_times
+		
+		archive_times = get_archive_files()
+		fs_times = get_fs_files()
+
+		# Compare the file system with the backup file, add/update as needed
 		for file in fs_times:
-			if not file in archive_times or fs_times[file] > archive_times[file]:
+			if not file in archive_times or
+				fs_times[file] > archive_times[file]:
 				archive.add(file)
 
 		archive.close()
