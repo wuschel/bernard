@@ -127,8 +127,8 @@ class Bernard(object):
 				for fpath in entry[2]:
 					fpath = normalize(os.path.join(entry[0], fpath))
 					if self.config.filter(fpath):
-						archive.add_file(fpath)
-						yield fpath
+						is_added = archive.add_file(fpath)
+						yield (fpath, is_added)
 		archive.close()
 
 	def extract(self, revision_n=-1):
@@ -193,6 +193,7 @@ if __name__ == '__main__':
 	bernard = Bernard(config, args.backup_name)
 	if args.should_backup:
 		for processed in bernard.backup():
-			print('Processing {0}'.format(processed))
+			if processed[1]:
+				print('Updated {0}'.format(processed[0]))
 	if args.should_restore:
 		bernard.restore()
