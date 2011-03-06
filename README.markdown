@@ -7,7 +7,6 @@ Example
 -------
 `home.bernard`:
     series 0
-    compress 1
     backup /home/john
     backup /var/mediaserver.db
     whitelist .db .png .jpg .jpeg
@@ -19,9 +18,6 @@ Configuration
     * Positive integer
     * Version number of the backup.  Increment to avoid trampling over previous
     backups.
-* `compress`
-    * 0 or 1
-    * Whether or not the archive should be GZip compressed.
 * `backup`
     * String
     * Path to back up--multiple backup directives are supported.	

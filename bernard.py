@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+__author__ = 'Andrew Aldridge'
+__version__ = '0.1-dev'
+__license__ = 'BSD'
+
+import datetime
 import sys
 import os
 import os.path
@@ -25,7 +30,6 @@ class ConfigFile(object):
 		self.data['blacklist'] = []
 		self.data['series'] = 0
 		self.data['backup'] = []
-		self.data['compress'] = False
 		
 		# Plain key/value parsing
 		raw = cfgfile.read()
@@ -41,8 +45,6 @@ class ConfigFile(object):
 			
 			if kv[0] == 'series':
 				self.data['series'] = int(kv[1])
-			elif kv[0] == 'compress':
-				self.data['compress'] = bool(int(kv[1]))
 			elif kv[0] == 'backup':
 				self.data[kv[0]].append(normalize(kv[1]))
 			elif kv[0] in self.LISTKEYS:
@@ -51,10 +53,6 @@ class ConfigFile(object):
 	@property
 	def series(self):
 		return self.data['series']
-	
-	@property
-	def compress(self):
-		return self.data['compress']
 	
 	@property
 	def paths(self):
@@ -77,8 +75,8 @@ class ConfigFile(object):
 			if not self.data['blacklist']:
 				return ext in self.data['whitelist']
 			
-			return ext in self.data['whitelist'] or
-				not ext in self.data['blacklist']
+			return (ext in self.data['whitelist'] or
+				not ext in self.data['blacklist'])
 		
 		return innerfilter
 
@@ -91,27 +89,24 @@ class Bernard(object):
 	@property
 	def archive_name(self):
 		"""Return the name of the backup target."""
-		ext = '.tar'
-		if self.config.compress:
-			ext += '.gz'
-		return '{0}-{1}{2}'.format(self.name, self.config.series, ext)
+		return '{0}-{1}.tar'.format(self.name, self.config.series)
 
 	def backup(self):
 		"""Back up items on the file system listed in the config object."""
 		archive = tarfile.TarFile(self.archive_name, 'a')
 
-		def get_archive_files(self):
-				"""Return file:modification pairs in the backup file."""
+		def get_archive_files():
+			"""Return file:modification pairs in the backup file."""
 			archive_times = {}
 			for info in archive:
-				# Leading slashes are removed on Unix
+				# Leading slashes are removed on Unix--fix that
 				if not os.path.isabs(info.name):
 					file_path = os.path.join('/', info.name)
 				file_path = normalize(file_path)
 				archive_times[file_path] = int(info.mtime)
 			return archive_times
 		
-		def get_fs_files(self):
+		def get_fs_files():
 			"""Return file:modification pairs on the filesystem."""
 			fs_times = {}
 			for path in self.config.paths:
@@ -127,17 +122,73 @@ class Bernard(object):
 
 		# Compare the file system with the backup file, add/update as needed
 		for file in fs_times:
-			if not file in archive_times or
-				fs_times[file] > archive_times[file]:
+			if (not file in archive_times or
+				fs_times[file] > archive_times[file]):
 				archive.add(file)
 
 		archive.close()
+	
+	def extract(self, revision_n=-1):
+		"""Restore the backup file onto the disk."""
+		pass
+
+class BernardArgs(object):
+	ACTION_BACKUP = 'b'
+	ACTION_RESTORE = 'r'
+	ACTION_HELP = 'h'
+	ACTIONS = set([ACTION_BACKUP, ACTION_RESTORE, ACTION_HELP])
+
+	HELP = '''
+Bernard {0} Copyright {1} Andrew Aldridge
+Usage:
+    bernard.py [ACTION] [BACKUP]
+ACTION may be one of:
+    b    Backup
+    r    Restore
+    h    Help (show this help page)
+BACKUP must be the name of a backup to create, and there must be a file
+./[BACKUP].bernard.'''.format(__version__, datetime.date.today().year)
+
+	@classmethod
+	def show_help(cls, status):
+		print(cls.HELP)
+		exit(status)
+
+	def __init__(self, args):
+		self.action = ''
+		self.backup_name = ''
 		
-		
+		# Check for illegal or insufficient arguments
+		if (len(args) < 3 or
+			not args[1] in self.ACTIONS):
+			self.show_help(1)
+
+		self.action = args[1]
+		self.backup_name = args[2]
+
+		if self.action == self.ACTION_HELP:
+			self.show_help(0)
+	
+	@property
+	def should_backup(self):
+		return self.action == self.ACTION_BACKUP
+	
+	@property
+	def should_restore(self):
+		return self.action == self.ACTION_RESTORE
+
+	@property
+	def config_path(self):
+		return self.backup_name + '.bernard'
+
 if __name__ == '__main__':
-	f = open(sys.argv[1], 'r')
+	args = BernardArgs(sys.argv)
+	f = open(args.config_path, 'r')
 	config = ConfigFile(f)
 	f.close()
 	
-	bernard = Bernard(config, os.path.splitext(os.path.basename(sys.argv[1]))[0])
-	bernard.backup()
+	bernard = Bernard(config, args.backup_name)
+	if args.should_backup:
+		bernard.backup()
+	if args.should_restore:
+		bernard.restore()
