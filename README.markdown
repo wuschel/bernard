@@ -17,11 +17,10 @@ Example
 Options
 -------
 ./bernard.py [ACTION] [CONFIG]
-ACTION may be one of:
-* `b`
-    * Backup
-* `r`
-    * Restore
+
+* ACTION
+    * `b` - Backup
+    * `r` - Restore
 
 Configuration
 -------------
