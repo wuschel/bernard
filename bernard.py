@@ -81,32 +81,49 @@ class ConfigFile(object):
 		return innerfilter
 
 class Archive(object):
+	"""Abstract representation of an underlying archive format."""
 	def __init__(self, path):
 		self.path = path
-		self.archive = tarfile.TarFile(self.path, 'a')
+		self.archive = None
 		self.mtimes = self._list_mtimes()
 	
 	def _list_mtimes(self):
 		"""Return file:modification pairs in the backup file."""
 		files = {}
-		for info in self.archive:
+
+		try:
+			archive = tarfile.TarFile(self.path, 'r')
+		except IOError:
+			return files
+
+		for info in archive:
 			# Leading slashes are removed on Unix--fix that
 			if not os.path.isabs(info.name):
 				file_path = os.path.join('/', info.name)
 			file_path = normalize(file_path)
 			files[file_path] = int(info.mtime)
+
+		archive.close()
 		return files
 	
 	def add_file(self, fspath):
+		"""Return if a file is out-of-date or missing, and add it to the archive
+		if necessary."""
 		path = normalize(fspath)
 		fstime = int(os.path.getmtime(path))
 		if (not path in self.mtimes or fstime > self.mtimes[path]):
+			# tarfile does not gracefully handle empty archives--only open
+			# if we're sure we have files to add.
+			if not self.archive:
+				self.archive = tarfile.TarFile(self.path, 'a')
+			
 			self.archive.add(path)
 			return True
 		return False
 	
 	def close(self):
-		self.archive.close()
+		if self.archive:
+			self.archive.close()
 
 class Bernard(object):
 	def __init__(self, config, name):
@@ -142,7 +159,7 @@ class BernardArgs(object):
 	ACTIONS = set([ACTION_BACKUP, ACTION_RESTORE, ACTION_HELP])
 
 	HELP = '''
-Bernard {0} Copyright {1} Andrew Aldridge
+Bernard {0} Copyright {1} {2}
 Usage:
     bernard.py [ACTION] [BACKUP]
 ACTION may be one of:
@@ -150,7 +167,9 @@ ACTION may be one of:
     r    Restore
     h    Help (show this help page)
 BACKUP must be the name of a backup to create, and there must be a file
-./[BACKUP].bernard.'''.format(__version__, datetime.date.today().year)
+./[BACKUP].bernard.'''.format(__version__,
+                              datetime.date.today().year,
+                              __author__)
 
 	@classmethod
 	def show_help(cls, status):

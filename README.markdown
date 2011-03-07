@@ -12,6 +12,17 @@ Example
     whitelist .db .png .jpg .jpeg
     whitelist .rtf .odt .doc .txt
 
+[john@home]$ ./bernard.py b home
+
+Options
+-------
+./bernard.py [ACTION] [CONFIG]
+ACTION may be one of:
+* `b`
+    * Backup
+* `r`
+    * Restore
+
 Configuration
 -------------
 * `series`
