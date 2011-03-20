@@ -12,10 +12,14 @@ import tarfile
 
 def splitroot(path):
 	"""Split the absolute component of the given path."""
+	# Drive-letter platforms
 	split = os.path.splitdrive(path)
+	split = (split[0], split[1].lstrip('\\'))
+	
+	# Unix-tyle platforms
 	if not split[0]:
 		split = ('/', path.lstrip('/'))
-	
+		
 	return split
 
 def normalize(path):
