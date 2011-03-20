@@ -12,7 +12,6 @@ import tarfile
 
 def normalize(path):
 	"""Return an attempt at avoiding file system quirks."""	
-	path = os.path.realpath(path)
 	path = os.path.normcase(path)
 	path = os.path.normpath(path)
 	return path
@@ -139,18 +138,32 @@ class Bernard(object):
 	def backup(self):
 		"""Back up items on the file system listed in the config object."""
 		archive = Archive(self.archive_name)
-		for path in self.config.paths:
-			for entry in os.walk(path):
-				for fpath in entry[2]:
-					fpath = normalize(os.path.join(entry[0], fpath))
-					if self.config.filter(fpath):
-						is_added = archive.add_file(fpath)
-						yield (fpath, is_added)
-		archive.close()
+		
+		try:
+			for path in self.config.paths:
+				for entry in os.walk(path):
+					for filename in entry[2]:
+						yield self._backup_file(entry[0], filename, archive)
+		finally:
+			archive.close()
 
 	def extract(self, revision_n=-1):
 		"""Restore the backup file onto the disk."""
 		pass
+
+	def _backup_file(self, root, filename, archive):
+		"""Return tuple of (path, updated, error)."""
+		fpath = normalize(os.path.join(root, filename))
+		
+		if self.config.filter(fpath):
+			is_added = False
+			err = False
+			try:
+				is_added = archive.add_file(fpath)
+			except EnvironmentError:
+				err = True
+			
+			return (fpath, is_added, err)
 
 class BernardArgs(object):
 	ACTION_BACKUP = 'b'
@@ -211,8 +224,13 @@ if __name__ == '__main__':
 	
 	bernard = Bernard(config, args.backup_name)
 	if args.should_backup:
-		for processed in bernard.backup():
-			if processed[1]:
-				print('Updated {0}'.format(processed[0]))
+		for path,updated,err in bernard.backup():
+			if err:
+				sys.stderr.write('e')
+			elif updated:
+				sys.stderr.write('u')
+			else:
+				sys.stderr.write('-')
+			sys.stderr.flush()
 	if args.should_restore:
 		bernard.restore()
