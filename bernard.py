@@ -10,6 +10,14 @@ import os
 import os.path
 import tarfile
 
+def splitroot(path):
+	"""Split the absolute component of the given path."""
+	split = os.path.splitdrive(path)
+	if not split[0]:
+		split = ('/', path.lstrip('/'))
+	
+	return split
+
 def normalize(path):
 	"""Return an attempt at avoiding file system quirks."""	
 	path = os.path.normcase(path)
@@ -96,10 +104,7 @@ class Archive(object):
 			return files
 
 		for info in archive:
-			# Leading slashes are removed on Unix--fix that
-			if not os.path.isabs(info.name):
-				file_path = os.path.join('/', info.name)
-			file_path = normalize(file_path)
+			file_path = normalize(info.name)
 			files[file_path] = int(info.mtime)
 
 		archive.close()
@@ -108,9 +113,12 @@ class Archive(object):
 	def add_file(self, fspath):
 		"""Return if a file is out-of-date or missing, and add it to the archive
 		if necessary."""
+		# Cut out the root component of the path to conform with archive paths
 		path = normalize(fspath)
+		relpath = splitroot(path)[1]
+				
 		fstime = int(os.path.getmtime(path))
-		if (not path in self.mtimes or fstime > self.mtimes[path]):
+		if not relpath in self.mtimes or fstime > self.mtimes[relpath]:
 			# tarfile does not gracefully handle empty archives--only open
 			# if we're sure we have files to add.
 			if not self.archive:
