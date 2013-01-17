@@ -6,9 +6,9 @@
 #include <unistd.h>
 #include "platform.hpp"
 
-void null_file_handler(const char* path, void* ctx) {}
-void null_dir_handler(const char* path, void* ctx) {}
-void null_error_handler(const char* path, void* ctx) {}
+static void null_file_handler(const char* path, void* ctx) {}
+static void null_dir_handler(const char* path, void* ctx) {}
+static void null_error_handler(const char* path, void* ctx) {}
 
 int walk(char const* root,
          void(*file_handler)(const char* path, void* ctx),

@@ -5,8 +5,8 @@ CXXFLAGS=$(FLAGS) -std=c++11
 bernard: bernard.o cache.o platform.o platform_unix.o
 	$(CXX) $(CXXFLAGS) -o $@ bernard.o cache.o platform.o platform_unix.o
 
-bernard.o: bernard.c
-	$(CXX) $(CXXFLAGS) -c -o $@ bernard.c
+bernard.o: bernard.cpp
+	$(CXX) $(CXXFLAGS) -c -o $@ bernard.cpp
 
 cache.o: cache.cpp cache.h
 	$(CXX) $(CXXFLAGS) -c -o $@ cache.cpp
