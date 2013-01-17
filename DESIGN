@@ -1,0 +1,83 @@
+./bernard-archive [options] <rootPath>
+Options:
+    delta [<mapfile>]
+Writes the output file to stdout.
+
+./bernard-restore [options] -- <mapFile>
+    extract [<file>]
+    fullPath
+        Tells bernard to prepend the backup root to each extracted
+        file.
+
+./bernard-examine-map [options] <mapFile>
+Options:
+    find <file>
+        Print the archive that contains the requested file.
+    findAll
+        Prints all the archives required for a full restore.
+    findNone
+        Prints a list of archives that are no longer needed.
+
+Mapfile format
+==============
+It's necessary both to know which archives contain which files and what files
+have changed since the last backup in an incremental backup system.
+<path_len: UInt16>
+\0 // Makes it possible to scan backwards through the mapfile if needed.
+<path: UInt8[path_len]>
+<mtime: UInt64> // Modifification time after epoch in nanoseconds.
+<hash: UInt8[32]> // SHA-256
+<sequence: UInt16> // Archive index, or 0 if deleted
+
+857392759354 8937a1794b16ee4e562b4414fff4883f4230e71ae4f18583e1b54e1e150615e1 00003 /home/foo/bar bah
+
+
+Archive Format
+==============
+An output package is an uncompressed pax-interchange tar file.  All archived
+files are put under a /data/ directory.  Several files exist in the root of the
+archive:
+ * manifest.sha256
+    Contains an escaped newline-delimited list of files in the /data/ directory
+    along with their respective sha256 hashes.  For example,
+        923f1131d98ebb90748056dea00350b4532b6141db9a38608aaf8db88d00a477 foo
+        e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 bar
+        e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 stuff/bar
+        e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 stuff/bar\nfoo
+        e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 stuff/bar\\nfoo
+ * bernard.info
+    Contains meta-information about the backup.  Example:
+        root /home/fred/Documents
+        uuid f5955434-4fb3-4c62-81ef-f426c40fff94
+        sequence 0
+        contact.name Andrew Aldridge
+        contact.email i80and@foxquill.com
+        time 1357603334
+    This would mean that the backup is from Fred's Documents directory, and
+    that it is the first backup in the f5955434-4fb3-4c62-81ef-f426c40fff94
+    backup set.
+    
+    As a general rule, bernard.info should be the *first* file in the tarball for
+    quick extraction.
+ * bernard.map
+    Holds the current archive mapfile.
+
+Algorithm: initial
+==================
+    let manifest be an output file
+    let output be an output archive
+    let info be an output file
+    for each file under rootPath:
+        let relPath = file - rootPath
+        hash := sha256(file)
+        write(manifest, base64(hash), (file - relPath))
+        add(output, file, "data/" + relPath)
+    add(output, manifest, "manifest.sha256")
+    add(output, info, "bernard.info")
+
+Algorithm: incremental
+======================
+    let manifest be an output file
+    let output be an output archive
+    let info be an output file
+    let mapfile be an input file
