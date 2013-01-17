@@ -5,6 +5,9 @@
 #include <string>
 #include <map>
 #include "cache.h"
+#include "platform.hpp"
+
+#define MAPFILE_VERSION 1
 
 struct cache {
     std::map<std::string, file_attrs_t> cache;
@@ -18,6 +21,10 @@ cache_t* cache_new(void) {
 int cache_load_map(cache_t* self, const char* path) {
     FILE* f = fopen(path, "rb");
     if(f == NULL) return 1;
+
+    std::string line;
+    // First line should contain general format information
+    getline(f, line);
 
     fclose(f);
     return 0;
@@ -56,14 +63,23 @@ int cache_save_map(cache_t* self, const char* path) {
     // Don't overwrite the mapfile until we're done.
     const size_t tmppath_len = strlen(path) + 4;
     char* tmppath = (char*)malloc(tmppath_len+1);
-    if(tmppath == NULL) return 1;
+    if(tmppath == NULL) {
+        free(tmppath);
+        return 1;
+    }
     snprintf(tmppath, tmppath_len+1, "%s.tmp", path);
 
     FILE* f = fopen(tmppath, "wb");
-    if(f == NULL) return 1;
+    if(f == NULL) {
+        free(tmppath);
+        return 1;
+    }
     fclose(f);
 
-    if(rename(tmppath, path) < 0) return 2;
+    if(rename(tmppath, path) < 0) {
+        free(tmppath);
+        return 2;
+    }
     free(tmppath);
 
     return 0;
